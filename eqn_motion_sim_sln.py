@@ -51,9 +51,9 @@ if __name__ == '__main__':
     
     patNumFiniteReg = 5
     
-    T = 0.14
+    T = 1/300
     dims = 8000
-    avgDegree = 5000
+    avgDegree = 12
     #simulation-related parameters
     numSim = 100
     itNum = 20                                                                  #total time steps to run

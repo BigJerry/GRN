@@ -18,6 +18,7 @@ def braket(avgNum,pg):
                 summation = np.zeros((pg.P,1),dtype=np.float32)
             if _func.__name__ is 'eqn_a':
                 summation = 0
+                
             if _func.__name__ is 'm_mu':
                 summ_m, summ_a = np.zeros((pg.P,1),dtype=np.float32),0
                 for n in range(avgNum):
@@ -27,14 +28,18 @@ def braket(avgNum,pg):
                     summ_m += s_m
                     summ_a += s_a
                 return summ_m / avgNum, summ_a / avgNum
-            for n in range(avgNum):
-                pg.generate() 
-                argFromHere = [pg.pat['ita'][:,0].reshape((pg.P,1)), \
-                               pg.pat['kesi'][:,0].reshape((pg.P,1))]
+            
+            pg.generate()
+            for i in range(avgNum):
+                
+                argFromHere = [pg.pat['ita'][:,i].reshape((pg.P,1)), \
+                               pg.pat['kesi'][:,i].reshape((pg.P,1))]
 
                 summation += _func(*args, argFromHere)
-                
-            return summation / avgNum
+            if _func.__name__ is 'eqn_m_mu':    
+                return summation
+            if _func.__name__ is 'eqn_a' or 'eqn_m_mu_1':
+                return summation /avgNum
         return wrapped_func
     return _braket
 
@@ -71,16 +76,14 @@ class NumericalSolver(object):
                                                                                 #sources, one is function 'solve', another is 
                                                                                 #wrapper 'braket'.
         assert(mPrimeVec.shape[1]==1)
-        
         field = np.matmul(fromBraket[1].T, mPrimeVec-aPrime)
-        ret = self.N / ( 2 * self.C_mu) * fromBraket[0] * \
-            (1 + np.tanh(self.Beta / 2 * field))
+        ret = 1 / ( 2 * self.C_mu) * fromBraket[0] * (1 + np.tanh((self.Beta / 2) * field))
         assert(ret.shape[1]==1)
         return ret
     
     def eqn_m_mu_1(self, mPrimeVec, aPrime, fromBraket):
         assert(mPrimeVec.shape[1]==1)
-        #prepare for 'fields' matrix
+        #prepare for 'field' matrix
         k = fromBraket[1].T
         f = np.array(k,dtype=np.float32)
         for n in range(self.pg.P-1):
@@ -95,9 +98,9 @@ class NumericalSolver(object):
     def eqn_a(self,mPrimeVec,aPrime,fromBraket):
         
         field = np.matmul(fromBraket[1].T,mPrimeVec-aPrime)
-        ret = 1/2 * (1 + np.tanh(self.Beta/2*field))
+        ret = 1/2 * (1 + np.tanh(self.Beta/2*field[0,0]))
 
-        return ret[0,0]        
+        return ret       
     
     def solve(self):
         #initializing initial patterns and states        
@@ -110,6 +113,9 @@ class NumericalSolver(object):
                                                                                 #will be determined.
         gen_mPrimeVec = braket(self.avgNum,self.pg)(self.m_mu)
         mPrimeVec,aPrime = gen_mPrimeVec(initState)
+        
+#        mPrimeVec = np.array([[1.0],[0.0],[0.0],[0.0],[0.0]],dtype=np.float32)
+#        aPrime = 0.0015
         print("initial overlaps vector configuration: \n",mPrimeVec)
         print("initial activity level is: ",aPrime)
         
@@ -122,8 +128,7 @@ class NumericalSolver(object):
         #iterating equation of motion
         
         for n in range(self.itNum-1):
-            mPrimeVec_ = m_mu_(mPrimeVec,aPrime)
-            aPrime_ = a_(mPrimeVec,aPrime)
+            mPrimeVec_, aPrime_ = m_mu_(mPrimeVec,aPrime), a_(mPrimeVec,aPrime)
             assert(mPrimeVec_.shape[1]==mPrimeVec.shape[1]==1)
             self.records['overlap'] = np.hstack((self.records['overlap'],mPrimeVec_))
             self.records['activity'].append(aPrime)
@@ -138,11 +143,11 @@ if __name__ == '__main__':
     gamma = 0.7
     alpha = 1
     
-    beta = 1/0.14
-    dims = 8000
-    avgDegree = 100
+    beta = 300
+    dims = 25000
+    avgDegree = 12
     #simulation-related parameters
-    avgNum = 15000
+    avgNum = dims
     itNum = 20                                                                 #total time steps to run
     #deciding which regime we're now in
     reg_p = 'limited'
