@@ -86,6 +86,11 @@ class DynamicModel(PatternGenerator):
     def generate(self):
         self._generate()
         self._init_memMat()
+        
+    #overriding function 'load()'
+    def load(self,path):
+        self.pat = np.load(path, allow_pickle=True).item()
+        self._init_memMat()
 
     def _init_memMat(self):
         if not self.ifDeco:
@@ -162,7 +167,7 @@ class DynamicModel(PatternGenerator):
             feed_dict = {memMat:self.memMat,
                          sysArr:self.sysArr}
             ret = np.mat(sess.run(res,feed_dict))
-        noise = self.T * np.random.normal(0,1,(self.N,1))
+        noise = self.T * np.random.normal(0,1,(self.N,1)) + 0
         self.sysArr = np.heaviside(ret + noise,0)
 
 class SequentialModel(DynamicModel):

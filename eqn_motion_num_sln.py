@@ -21,7 +21,7 @@ def braket(avgNum,pg):
                 
             if _func.__name__ is 'm_mu':
                 summ_m, summ_a = np.zeros((pg.P,1),dtype=np.float32),0
-                for n in range(avgNum):
+                for i in range(avgNum):
                     pg.generate()
                     argFromHere = pg.pat['ita']
                     s_m, s_a = _func(*args, argFromHere)
@@ -29,7 +29,6 @@ def braket(avgNum,pg):
                     summ_a += s_a
                 return summ_m / avgNum, summ_a / avgNum
             
-            pg.generate()
             for i in range(avgNum):
                 
                 argFromHere = [pg.pat['ita'][:,i].reshape((pg.P,1)), \
@@ -43,6 +42,22 @@ def braket(avgNum,pg):
         return wrapped_func
     return _braket
 
+def braket_two(avgNum,pg):
+    def _braket_two(_func):
+        @functools.wraps(_func)
+        def wrapped_func(*args):
+            sum_m = np.zeros((pg.P,1),dtype=np.float32)
+            sum_a = 0
+            for i in range(avgNum):
+                argFromHere = [pg.pat['ita'][:,i].reshape((pg.P,1)), \
+                               pg.pat['kesi'][:,i].reshape((pg.P,1))]
+                s_m, s_a = _func(*args, argFromHere)
+                sum_m += s_m
+                sum_a += s_a
+            return sum_m / avgNum, sum_a / avgNum
+        return wrapped_func
+    return _braket_two
+
 class NumericalSolver(object):
     def __init__(self,args):
         self.Beta = args['beta']
@@ -50,6 +65,7 @@ class NumericalSolver(object):
         self.itNum = args['itNum']
         self.pg = args['patGen']
         self.gamma = args['gamma']
+        self.fname = args['fname']
         
     @property
     def N(self):
@@ -100,7 +116,22 @@ class NumericalSolver(object):
         field = np.matmul(fromBraket[1].T,mPrimeVec-aPrime)
         ret = 1/2 * (1 + np.tanh(self.Beta/2*field[0,0]))
 
-        return ret       
+        return ret   
+
+    def eqn_motion(self,mPrimeVec,aPrime,fromBraket):
+        
+        k = fromBraket[1].T
+        f = np.array(k,dtype=np.float32)
+        for n in range(self.pg.P-1):
+            f = np.append(f, np.array(k,dtype=np.float32), 0)
+        for n in range(self.pg.P):
+            f[n,n] = 1.0
+        field = np.matmul(f, mPrimeVec - aPrime)
+        retM = 1/2* (1 + np.tanh(self.Beta/2 * field))
+        
+        field = np.matmul(fromBraket[1].T, mPrimeVec-aPrime)
+        retA = 1 / 2 * (1 + np.tanh(self.Beta / 2 * field[0,0]))
+        return retM, retA
     
     def solve(self):
         #initializing initial patterns and states        
@@ -111,11 +142,12 @@ class NumericalSolver(object):
                                                                                 #together with above initial patterns,
                                                                                 #the initial overlap order parameters
                                                                                 #will be determined.
-        gen_mPrimeVec = braket(self.avgNum,self.pg)(self.m_mu)
-        mPrimeVec,aPrime = gen_mPrimeVec(initState)
+                                                                                
+#        gen_mPrimeVec = braket(self.avgNum,self.pg)(self.m_mu)
+#        mPrimeVec,aPrime = gen_mPrimeVec(initState)
         
-#        mPrimeVec = np.array([[1.0],[0.0],[0.0],[0.0],[0.0]],dtype=np.float32)
-#        aPrime = 0.0015
+        mPrimeVec = np.array([[0.6666664],[0.0],[0.0],[0.0],[0.0]],dtype=np.float32)
+        aPrime = 0.0016
         print("initial overlaps vector configuration: \n",mPrimeVec)
         print("initial activity level is: ",aPrime)
         
@@ -123,18 +155,23 @@ class NumericalSolver(object):
         self.records['overlap'] = mPrimeVec
         self.records['activity'].append(aPrime)
         #wrapping equation of motion using 'braket'
+#        bra_eqn_motion = braket_two(self.avgNum,self.pg)(self.eqn_motion)
+        
         m_mu_ = braket(self.avgNum,self.pg)(self.eqn_m_mu)
         a_ = braket(self.avgNum,self.pg)(self.eqn_a)
-        #iterating equation of motion
         
+        #iterating equation of motion
+        self.pg.load(self.fname)
         for n in range(self.itNum-1):
+            
             mPrimeVec_, aPrime_ = m_mu_(mPrimeVec,aPrime), a_(mPrimeVec,aPrime)
+#            mPrimeVec_, aPrime_ = bra_eqn_motion(mPrimeVec, aPrime)
             assert(mPrimeVec_.shape[1]==mPrimeVec.shape[1]==1)
-            self.records['overlap'] = np.hstack((self.records['overlap'],mPrimeVec_))
-            self.records['activity'].append(aPrime)
+            self.records['overlap'] = np.hstack((self.records['overlap'], mPrimeVec_))
+            self.records['activity'].append(aPrime_)
             mPrimeVec , aPrime = mPrimeVec_ , aPrime_
             
-            print("iteration No.%d finished, next run..."%n)
+            print("iteration No. %d finished, next run..."%n)
 
 if __name__ == '__main__':
     fname = r'E:\temptemptemp\npy\hehe.npy'
@@ -143,12 +180,12 @@ if __name__ == '__main__':
     gamma = 0.7
     alpha = 1
     
-    beta = 300
-    dims = 25000
+    beta = 1/1.8
+    dims = 5000
     avgDegree = 12
     #simulation-related parameters
     avgNum = dims
-    itNum = 20                                                                 #total time steps to run
+    itNum = 20                                                                #total time steps to run
     #deciding which regime we're now in
     reg_p = 'limited'
     reg_c = 'sparse'
@@ -167,14 +204,13 @@ if __name__ == '__main__':
     pg = PatternGenerator(dims,avgDegree,alpha,gamma=gamma,delta=delta)
     pg.regime_P(reg_p,5)
     pg.regime_C(reg_c)
-    pg.generate()
     
     solverArgs = {'beta':beta,
                   'patGen':pg,
                   'avgNum':avgNum,
                   'itNum':itNum,
-                  'gamma':gamma}
-    
+                  'gamma':gamma,
+                  'fname':fname}
     ns = NumericalSolver(solverArgs)
     ns.solve()
     print(cfg)

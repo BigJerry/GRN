@@ -51,11 +51,11 @@ if __name__ == '__main__':
     
     patNumFiniteReg = 5
     
-    T = 1/300
-    dims = 8000
+    T = 1.8
+    dims = 5000
     avgDegree = 12
     #simulation-related parameters
-    numSim = 100
+    numSim = 50
     itNum = 20                                                                  #total time steps to run
     #deciding which regime we're now in
     reg_p = 'limited'
@@ -81,9 +81,12 @@ if __name__ == '__main__':
                       tfConfig=config)
     dm.regime_P(reg_p,patNumFiniteReg)
     dm.regime_C(reg_c)
-#    dm.generate()
+    dm.load(fname)
     
     initState = dm.pat['ita'][0,:].T.reshape((dm.N,1))
+#    initState = np.zeros((dm.N,1),dtype=np.float32)
+#    for i in range(8):
+#        initState[i,0] = 1.0
 
     obs = Observable(dm)
     obs.Quant.Traj_m = np.zeros((dm.P,itNum),dtype=np.float32)
@@ -92,8 +95,7 @@ if __name__ == '__main__':
     for n in range(numSim):
         t_s = time.time()
         ################################
-        dm.generate()
-        initState = dm.pat['ita'][0,:].T.reshape((dm.N, 1))
+#        dm.generate()
         
         dm.init_system_with_value(initState)
         
@@ -113,14 +115,17 @@ if __name__ == '__main__':
         t_e = time.time()
         tt = t_e-t_s
         numRem = numSim-n-1
-        print("Now in No.%d simulation, %d simulations remain. %fs is estimated to be needed"%(n+1,numRem,numRem*tt))
+        if n%10 == 0:
+            print("Now in No.%d simulation, %d simulations remain. %fs is estimated to be needed"%(n+1,numRem,numRem*tt))
     
     obs.Quant.Traj_m /= numSim
     obs.Quant.Traj_a /= numSim
     print(cfg)
     for n in range(5):
         plt.plot(np.arange(itNum),obs.Quant.Traj_m[n,:].reshape((itNum,)))
+#        print(obs.Quant.Traj_m[n,:])
     f = plt.plot(np.arange(itNum),obs.Quant.Traj_a.reshape((itNum,)))
+#    print(obs.Quant.Traj_a)
 
 
 

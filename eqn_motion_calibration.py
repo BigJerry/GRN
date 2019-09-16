@@ -22,12 +22,12 @@ if __name__ == '__main__':
     
     patNumFiniteReg = 5
     
-    T = 0.14
-    dims = 8000
-    avgDegree = 240
+    T = 0.5
+    dims = 5000
+    avgDegree = 12
     #simulation-related parameters
-    numSim = 300
-    itNum = 30                                                                  #total time steps to run
+    numSim = 50
+    itNum = 20                                                                  #total time steps to run
     #deciding which regime we're now in
     reg_p = 'limited'
     reg_c = 'sparse'
@@ -52,4 +52,6 @@ if __name__ == '__main__':
                       tfConfig=config)
     dm.regime_P(reg_p,patNumFiniteReg)
     dm.regime_C(reg_c)
+    dm.generate()
+    
     dm.save(fname)
